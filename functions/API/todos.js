@@ -2,8 +2,9 @@ const { db } = require('../util/admin');
 
 exports.getAllTodos = (request, response) => {
 	db
-		.collection('todos')
-		.orderBy('createdAt', 'desc')
+        .collection('todos')
+        .where('username', '==', request.user.username)
+        .orderBy('createdAt', 'desc')
 		.get()
 		.then((data) => {
 			let todos = [];
@@ -23,6 +24,21 @@ exports.getAllTodos = (request, response) => {
 		});
 };
 
+exports.getOneTodo = (request, response) => {
+    const document = db.doc(`/todos/${request.params.todoId}`);
+    document.get().then((doc) => {
+        if(!doc.exists){
+            return response.status(404).json({error: "Todo Item not found"})
+        }
+        return response.json({
+            todoId: doc.id,
+            title: doc.data().title,
+            body: doc.data().body,
+            createdAt: doc.data().createdAt
+        })
+    })
+}
+
 exports.postOneTodo = (request, response) => {
     if(request.body.body.trim() === ''){
         return response.status(400).json({body: 'Text must be filled'})
@@ -35,7 +51,8 @@ exports.postOneTodo = (request, response) => {
     const newTodo = {
         body: request.body.body,
         title: request.body.title,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        username: request.user.username
     }
 
     db.collection('todos').add(newTodo)
@@ -56,6 +73,11 @@ exports.deleteTodo = (request, response) => {
         if(!doc.exists){
             return response.status(404).json({error: "Todo Item not found"})
         }
+
+        if(doc.data().username !== request.user.username){
+            return response.status(403).json({error:"UnAuthorized"})
+       }
+       
         return document.delete();
     })
     .then(() => {
